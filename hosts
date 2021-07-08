@@ -1,0 +1,27 @@
+# If you're running the Single Master playbook:  playbook-k8s-master-single.yml
+
+[first-master-node]
+master01
+
+[worker-nodes]
+worker01
+worker02
+worker03
+
+
+#----------------------------------------------------------------------------------
+
+
+# If you're running the Cluster playbook:  playbook-k8s-master-cluster.yml
+
+[first-master-node]
+master01
+
+[other-master-modes]
+master02
+master3
+
+[worker-nodes]
+worker01
+worker02
+worker03
