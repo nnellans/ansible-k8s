@@ -4,7 +4,6 @@
 #------------------------
 - name: Install all prerequisites, the CRI (containerd), and Kubernetes components (kubeadm, kubectl, kubelet)
   hosts: all
-  remote_user: root
   become: yes
   tasks:
   
@@ -16,7 +15,6 @@
 #------------------------
 - name: Initialize a cluster onto a single Master node
   hosts: first-master-node
-  remote_user: root
   become: yes
   tasks:
   
@@ -79,7 +77,6 @@
 #------------------------
 - name: Join the Worker nodes to the cluster
   hosts: worker-nodes
-  remote_user: root
   become: yes
   tasks:
 
