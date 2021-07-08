@@ -1,0 +1,116 @@
+# Source: https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd
+
+# This Task enables IP forwarding and also allows iptables to see bridged traffic
+- name: Create '99-kubernetes-cri.conf' in /etc/sysctl.d/
+  ansible.builtin.copy:
+    content: |
+      net.bridge.bridge-nf-call-iptables  = 1
+      net.ipv4.ip_forward                 = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+    dest: /etc/sysctl.d/99-kubernetes-cri.conf
+
+# This Task ensures the overlay & br_netfilter modules are loaded at startup
+- name: Create 'containerd.conf' in /etc/modules-load.d/
+  ansible.builtin.copy:
+    content: |
+      overlay
+      br_netfilter
+    dest: /etc/modules-load.d/containerd.conf
+
+- name: Load the overlay and br_netfilter modules
+  shell: |
+    modprobe overlay
+    modprobe br_netfilter
+  
+- name: Apply the new sysctl parameters
+  shell: sysctl --system
+
+# Source: https://docs.docker.com/engine/install/ubuntu/
+
+- name: Install packages to allow apt to use a repository over HTTPS
+  ansible.builtin.apt:
+    update_cache: yes
+    pkg:
+    - apt-transport-https
+    - ca-certificates
+    - curl
+    - gnupg
+    - lsb-release
+    state: present
+
+- name: Add Docker's official GPG key to /usr/share/keyrings/
+  shell: curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/docker-archive-keyring.gpg
+
+# Update to use a variable for architecture?
+- name: Add Docker's stable repository
+  ansible.builtin.apt_repository:
+    repo: "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu {{ansible_lsb.codename}} stable"
+    filename: docker
+    state: present
+
+- name: Install containerd
+  ansible.builtin.apt:
+    update_cache: yes
+    name: containerd.io
+    state: present
+
+# Source: https://kubernetes.io/docs/setup/production-environment/container-runtimes/#containerd
+
+- name: Create the /etc/containerd directory
+  ansible.builtin.file:
+    path: /etc/containerd
+    state: directory
+
+- name: Create the default config file for containerd
+  shell: |
+    containerd config default | tee /etc/containerd/config.toml
+    touch /etc/containerd/ansible-configured-containerd
+  args:
+    creates: /etc/containerd/ansible-configured-containerd
+
+- name: Modify the config file created above so that it uses 'systemd' for cgroup driver
+  ansible.builtin.lineinfile:
+    path: /etc/containerd/config.toml
+    insertafter: '\[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options\]'
+    line: "            SystemdCgroup = true"
+
+- name: Restart containerd
+  ansible.builtin.systemd:
+    name: containerd
+    state: restarted
+
+# Source: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+# Requires the posix collection (ansible-galaxy collection install ansible.posix)
+- name: Remove swapfile from /etc/fstab
+  ansible.posix.mount:
+    src: /swap.img
+    path: none
+    fstype: swap
+    state: absent
+
+- name: Disable swap
+  shell: swapoff -a
+  when: ansible_swaptotal_mb > 0
+
+- name: Add Google's official GPG key to /usr/share/keyrings/
+  shell: curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+  args:
+    creates: /usr/share/keyrings/kubernetes-archive-keyring.gpg
+
+- name: Add the Kubernetes stable repository
+  ansible.builtin.apt_repository:
+    repo: deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main
+    filename: kubernetes
+    state: present
+
+- name: Install kubeadm, kubelet, and kubectl
+  ansible.builtin.apt:
+    update_cache: yes
+    pkg:
+    - kubelet
+    - kubeadm
+    - kubectl
+    state: present

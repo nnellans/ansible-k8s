@@ -1,0 +1,97 @@
+---
+
+# Play 1
+#------------------------
+- name: Install all prerequisites, the CRI (containerd), and Kubernetes components (kubeadm, kubectl, kubelet)
+  hosts: all
+  remote_user: root
+  become: yes
+  tasks:
+  
+  - name: Run the prerequisite setup
+    include: tasks-shared-setup.yml
+
+
+# Play 2
+#------------------------
+- name: Initialize a cluster onto a single Master node
+  hosts: first-master-node
+  remote_user: root
+  become: yes
+  tasks:
+  
+  # Source: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+
+  - name: Create the file kubeadm-config.yaml in /tmp/
+    ansible.builtin.copy:
+      content: |
+        kind: ClusterConfiguration
+        apiVersion: kubeadm.k8s.io/v1beta2
+        controlPlaneEndpoint: "{{endpoint}}:6443"
+        networking:
+          podSubnet: "192.168.0.0/16"
+        ---
+        kind: KubeletConfiguration
+        apiVersion: kubelet.config.k8s.io/v1beta1
+        cgroupDriver: systemd
+      dest: /tmp/kubeadm-config.yaml
+    vars:
+      endpoint: "{{ansible_default_ipv4.address}}"
+  
+  - name: Initialize the cluster using the config file
+    shell: |
+      kubeadm init --config /tmp/kubeadm-config.yaml
+      touch /etc/kubernetes/ansible-installed-k8s
+    args:
+      creates: /etc/kubernetes/ansible-installed-k8s
+
+  - name: Configure the kube config file
+    shell: |
+      mkdir -p /home/{{user}}/.kube
+      cp -i /etc/kubernetes/admin.conf /home/{{user}}/.kube/config
+      chown $(id -u {{user}}):$(id -g {{user}}) /home/{{user}}/.kube/config
+    vars:
+      user: owner
+    args:
+      creates: "/home/{{user}}/.kube/config"
+
+  - name: Install calico pod network
+    shell: |
+      kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml --kubeconfig /etc/kubernetes/admin.conf
+      touch /etc/kubernetes/ansible-installed-calico
+    args:
+      creates: /etc/kubernetes/ansible-installed-calico
+
+  # Source: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/
+
+  - name: Generate the command to join a Worker node and assign it to a variable
+    shell: kubeadm token create --print-join-command
+    register: join_command
+
+  - name: Copy the join command for a Worker node to a local file
+    ansible.builtin.copy:
+      content: "{{ join_command.stdout_lines[0] }}"
+      dest: "./join-command-worker"
+    delegate_to: 127.0.0.1
+
+
+# Play 3
+#------------------------
+- name: Join the Worker nodes to the cluster
+  hosts: worker-nodes
+  remote_user: root
+  become: yes
+  tasks:
+
+  - name: Copy the join command to the Worker node
+    ansible.builtin.copy:
+      src: join-command-worker
+      dest: /tmp/join-command-worker.sh
+      mode: '0777'
+
+  - name: Join the Worker nodes to cluster
+    shell: |
+      sh /tmp/join-command-worker.sh
+      touch /etc/kubernetes/ansible-installed-k8s
+    args:
+      creates: /etc/kubernetes/ansible-installed-k8s

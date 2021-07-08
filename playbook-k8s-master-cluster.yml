@@ -1,0 +1,150 @@
+---
+
+# Play 1
+#------------------------
+- name: Install all prerequisites, the CRI (containerd), and Kubernetes components (kubeadm, kubectl, kubelet)
+  hosts: all
+  remote_user: root
+  become: yes
+  tasks:
+  
+  - name: Run the prerequisite setup
+    include: tasks-shared-setup.yml
+
+
+# Play 2
+#------------------------
+- name: Install kube-vip, and initialize a cluster onto the first Master node
+  hosts: first-master-node
+  remote_user: root
+  become: yes
+  tasks:
+  
+  - name: Pull the image for kube-vip
+    shell: ctr image pull docker.io/plndr/kube-vip:0.3.4
+
+  - name: Generate the static pod yaml file for kube-vip and place into /etc/kubernetes/manifests
+    shell: ctr run --rm --net-host docker.io/plndr/kube-vip:0.3.4 vip /kube-vip manifest pod --interface eth0 --address {{kube_vip}} --controlplane --arp --leaderElection | tee /etc/kubernetes/manifests/vip.yaml
+    vars:
+      kube_vip: "192.168.144.90"
+    args:
+      creates: "/etc/kubernetes/manifests/vip.yaml"
+
+  # Source: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
+
+  - name: Create the file kubeadm-config.yaml in /tmp/
+    ansible.builtin.copy:
+      content: |
+        kind: ClusterConfiguration
+        apiVersion: kubeadm.k8s.io/v1beta2
+        controlPlaneEndpoint: "{{endpoint}}:6443"
+        networking:
+          podSubnet: "192.168.0.0/16"
+        ---
+        kind: KubeletConfiguration
+        apiVersion: kubelet.config.k8s.io/v1beta1
+        cgroupDriver: systemd
+      dest: /tmp/kubeadm-config.yaml
+    vars:
+      endpoint: "192.168.144.90"
+  
+  - name: Initialize the cluster using the config file
+    shell: |
+      kubeadm init --config /tmp/kubeadm-config.yaml --upload-certs
+      touch /etc/kubernetes/ansible-installed-k8s
+    args:
+      creates: /etc/kubernetes/ansible-installed-k8s
+
+  - name: Configure the kube config file
+    shell: |
+      mkdir -p /home/{{user}}/.kube
+      cp -i /etc/kubernetes/admin.conf /home/{{user}}/.kube/config
+      chown $(id -u {{user}}):$(id -g {{user}}) /home/{{user}}/.kube/config
+    vars:
+      user: owner
+    args:
+      creates: "/home/{{user}}/.kube/config"
+
+  - name: Install calico pod network
+    shell: |
+      kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml --kubeconfig /etc/kubernetes/admin.conf
+      touch /etc/kubernetes/ansible-installed-calico
+    args:
+      creates: /etc/kubernetes/ansible-installed-calico
+
+  # Source: https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-join/
+
+  - name: Generate the command to join a node and assign it to a variable
+    shell: kubeadm token create --print-join-command
+    register: join_command
+
+  - name: Generate the certificate key and assign it to a variable
+    shell: kubeadm init phase upload-certs --upload-certs
+    register: certificate_key
+
+  - name: Copy the join command for a Master node to a local file
+    ansible.builtin.copy:
+      content: "{{ join_command.stdout_lines[0] }} --control-plane --certificate-key {{ certificate_key.stdout_lines[2] }}"
+      dest: "./join-command-master"
+    delegate_to: 127.0.0.1
+
+  - name: Copy the join command for a Worker node to a local file
+    ansible.builtin.copy:
+      content: "{{ join_command.stdout_lines[0] }}"
+      dest: "./join-command-worker"
+    delegate_to: 127.0.0.1
+
+
+# Play 3
+#------------------------
+- name: Join the other Master nodes to the cluster
+  hosts: other-master-nodes
+  remote_user: root
+  become: yes
+  tasks:
+
+  - name: Copy the join command to the other Master nodes
+    ansible.builtin.copy:
+      src: join-command-master
+      dest: /tmp/join-command-master.sh
+      mode: '0777'
+
+  - name: Join the other Master nodes to cluster
+    shell: |
+      sh /tmp/join-command-master.sh
+      touch /etc/kubernetes/ansible-installed-k8s
+    args:
+      creates: /etc/kubernetes/ansible-installed-k8s
+
+  # Due to an oddity with kubeadm, join additional Master nodes first, then configure the kube-vip manifest file
+  - name: Pull the image for kube-vip
+    shell: ctr image pull docker.io/plndr/kube-vip:0.3.4
+
+  - name: Generate the static pod yaml file for kube-vip and place in /etc/kubernetes/manifests
+    shell: ctr run --net-host --rm docker.io/plndr/kube-vip:0.3.4 vip /kube-vip manifest pod --interface eth0 --address {{kube_vip}} --controlplane --services --arp --leaderElection | tee /etc/kubernetes/manifests/vip.yaml
+    vars:
+      kube_vip: "192.168.144.90"
+    args:
+      creates: "/etc/kubernetes/manifests/vip.yaml"
+
+
+# Play 4
+#------------------------
+- name: Join the Worker nodes to the cluster
+  hosts: worker-nodes
+  remote_user: root
+  become: yes
+  tasks:
+
+  - name: Copy the join command to the Worker node
+    ansible.builtin.copy:
+      src: join-command-worker
+      dest: /tmp/join-command-worker.sh
+      mode: '0777'
+
+  - name: Join the Worker nodes to cluster
+    shell: |
+      sh /tmp/join-command-worker.sh
+      touch /etc/kubernetes/ansible-installed-k8s
+    args:
+      creates: /etc/kubernetes/ansible-installed-k8s
