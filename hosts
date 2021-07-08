@@ -19,7 +19,7 @@ master01
 
 [other-master-modes]
 master02
-master3
+master03
 
 [worker-nodes]
 worker01
