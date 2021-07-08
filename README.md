@@ -5,6 +5,7 @@ This is a work-in-progress, but has been successfully tested on virtual machines
 
 I am new to Ansible, so I am sure there is plenty of code that could be cleaned up or done differently.  I welcome any and all pull requests if you have proposed changes.
 
+
 WHAT THIS DOES:
 * Installs all prerequisite apt packages and does all prerequisite operating system configuration.
 * Uses the containerd CRI, which is installed from Docker's official repository.
@@ -16,6 +17,9 @@ WHAT THIS DOES:
   * Optionally, you can join more Master nodes to the cluster for high availability.  This will use Kube-Vip to provide high availability.
 * Join one or more Worker nodes to the cluster.
 
+ANSIBLE REQUIREMENTS:
+* Requires the posix collection, which can be installed with this command:  ansible-galaxy collection install ansible.posix
+
 THE TWO PLAYBOOKS:
 * playbook-k8s-master-single.yml
   * This is designed to build a Kubernetes cluster that contains 1 Master Node and N Worker Nodes.
@@ -23,6 +27,7 @@ THE TWO PLAYBOOKS:
 * playbook-k8s-master-cluster.yml
   * This is designed to build a Kubernetes cluster that contains N Master Nodes and N Worker Nodes.
   * This installs [Kube-Vip](https://kube-vip.io/) and therefore uses a Virtual IP (VIP) as the cluster endpoint.
+
 
 TO DO:
 * Test this on Ubuntu Server (ARM) on Raspberry Pi and modify code as needed.
