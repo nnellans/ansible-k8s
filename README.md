@@ -7,7 +7,8 @@ I am new to Ansible, so I am sure there is plenty of code that could be cleaned 
 
 WHAT THIS DOES:
 * Installs all prerequisite apt packages and does all prerequisite operating system configuration.
-* Uses the containerd CRI, which is installed from Docker's official repository.  The containerd configuration is modified to use 'systemd' as the c-group driver.
+* Uses the containerd CRI, which is installed from Docker's official repository.
+  * The containerd configuration is modified to use 'systemd' as the c-group driver.
 * Uses the latest version of Kubernetes, which is installed from Google's official repository.
 * Initializes a Kubernetes cluster onto a single Master node using kubeadm.
   * The kubelet configuration is modified to use 'systemd' as the c-group driver.
