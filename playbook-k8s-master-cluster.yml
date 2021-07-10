@@ -118,7 +118,7 @@
     shell: ctr image pull docker.io/plndr/kube-vip:0.3.4
 
   - name: Generate the static pod yaml file for kube-vip and place in /etc/kubernetes/manifests
-    shell: ctr run --net-host --rm docker.io/plndr/kube-vip:0.3.4 vip /kube-vip manifest pod --interface eth0 --address {{kube_vip}} --controlplane --services --arp --leaderElection | tee /etc/kubernetes/manifests/vip.yaml
+    shell: ctr run --rm --net-host docker.io/plndr/kube-vip:0.3.4 vip /kube-vip manifest pod --interface eth0 --address {{kube_vip}} --controlplane --arp --leaderElection | tee /etc/kubernetes/manifests/vip.yaml
     vars:
       kube_vip: "192.168.144.90"
     args:
