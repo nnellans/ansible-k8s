@@ -16,6 +16,8 @@
 - name: Initialize a cluster onto a single Master node
   hosts: first-master-node
   become: yes
+  vars_files:
+  - /var/external_vars.yml
   tasks:
   
   # Source: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
@@ -25,7 +27,7 @@
       content: |
         kind: ClusterConfiguration
         apiVersion: kubeadm.k8s.io/v1beta2
-        controlPlaneEndpoint: "{{endpoint}}:6443"
+        controlPlaneEndpoint: "{{ansible_default_ipv4.address}}:6443"
         networking:
           podSubnet: "192.168.0.0/16"
         ---
@@ -33,8 +35,6 @@
         apiVersion: kubelet.config.k8s.io/v1beta1
         cgroupDriver: systemd
       dest: /tmp/kubeadm-config.yaml
-    vars:
-      endpoint: "{{ansible_default_ipv4.address}}"
   
   - name: Initialize the cluster using the config file
     shell: |
@@ -48,8 +48,6 @@
       mkdir -p /home/{{user}}/.kube
       cp -i /etc/kubernetes/admin.conf /home/{{user}}/.kube/config
       chown $(id -u {{user}}):$(id -g {{user}}) /home/{{user}}/.kube/config
-    vars:
-      user: owner
     args:
       creates: "/home/{{user}}/.kube/config"
 
