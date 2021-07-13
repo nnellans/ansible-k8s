@@ -17,7 +17,7 @@
   hosts: first-master-node
   become: yes
   vars_files:
-  - /var/external_vars.yml
+  - /vars/external_vars.yml
   tasks:
   
   # Source: https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/
