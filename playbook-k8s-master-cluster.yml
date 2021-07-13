@@ -16,6 +16,8 @@
 - name: Install kube-vip, and initialize a cluster onto the first Master node
   hosts: first-master-node
   become: yes
+  vars_files:
+  - /vars/external_vars.yml
   tasks:
   
   - name: Pull the image for kube-vip
@@ -23,8 +25,6 @@
 
   - name: Generate the static pod yaml file for kube-vip and place into /etc/kubernetes/manifests
     shell: ctr run --rm --net-host docker.io/plndr/kube-vip:0.3.4 vip /kube-vip manifest pod --interface eth0 --address {{kube_vip}} --controlplane --arp --leaderElection | tee /etc/kubernetes/manifests/vip.yaml
-    vars:
-      kube_vip: "192.168.144.90"
     args:
       creates: "/etc/kubernetes/manifests/vip.yaml"
 
@@ -35,16 +35,14 @@
       content: |
         kind: ClusterConfiguration
         apiVersion: kubeadm.k8s.io/v1beta2
-        controlPlaneEndpoint: "{{endpoint}}:6443"
+        controlPlaneEndpoint: "{{kube_vip}}:6443"
         networking:
-          podSubnet: "192.168.0.0/16"
+          podSubnet: "{{pod_subnet}}"
         ---
         kind: KubeletConfiguration
         apiVersion: kubelet.config.k8s.io/v1beta1
         cgroupDriver: systemd
       dest: /tmp/kubeadm-config.yaml
-    vars:
-      endpoint: "192.168.144.90"
   
   - name: Initialize the cluster using the config file
     shell: |
@@ -58,8 +56,6 @@
       mkdir -p /home/{{user}}/.kube
       cp -i /etc/kubernetes/admin.conf /home/{{user}}/.kube/config
       chown $(id -u {{user}}):$(id -g {{user}}) /home/{{user}}/.kube/config
-    vars:
-      user: owner
     args:
       creates: "/home/{{user}}/.kube/config"
 
@@ -98,6 +94,8 @@
 - name: Join the other Master nodes to the cluster
   hosts: other-master-nodes
   become: yes
+  vars_files:
+  - /vars/external_vars.yml
   tasks:
 
   - name: Copy the join command to the other Master nodes
@@ -119,8 +117,6 @@
 
   - name: Generate the static pod yaml file for kube-vip and place in /etc/kubernetes/manifests
     shell: ctr run --rm --net-host docker.io/plndr/kube-vip:0.3.4 vip /kube-vip manifest pod --interface eth0 --address {{kube_vip}} --controlplane --arp --leaderElection | tee /etc/kubernetes/manifests/vip.yaml
-    vars:
-      kube_vip: "192.168.144.90"
     args:
       creates: "/etc/kubernetes/manifests/vip.yaml"
 
