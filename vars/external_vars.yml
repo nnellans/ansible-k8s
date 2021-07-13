@@ -1,0 +1,8 @@
+---
+
+# Used by the master-cluster playbook
+# Defines the virtual IP to use as the cluster endpoint
+kube_vip: "192.168.144.90"
+
+# Which user to configure the kube config file for on the first master node
+user: owner
