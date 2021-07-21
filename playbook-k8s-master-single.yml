@@ -36,11 +36,6 @@
         cgroupDriver: systemd
       dest: /tmp/kubeadm-config.yaml
 
-  # for raspberry pi / arm64 only
-  # https://ubuntu.com/tutorials/how-to-kubernetes-cluster-on-raspberry-pi#4-installing-microk8s
-  # modify:  /boot/firmware/cmdline.txt
-  # add:  cgroup_enable=memory cgroup_memory=1
-  
   - name: Initialize the cluster using the config file
     shell: |
       kubeadm init --config /tmp/kubeadm-config.yaml
