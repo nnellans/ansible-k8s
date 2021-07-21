@@ -114,3 +114,8 @@
     - kubeadm
     - kubectl
     state: present
+
+# for raspberry pi / arm64 only
+# https://ubuntu.com/tutorials/how-to-kubernetes-cluster-on-raspberry-pi#4-installing-microk8s
+# modify:  /boot/firmware/cmdline.txt
+# add:  cgroup_enable=memory cgroup_memory=1
